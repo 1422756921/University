@@ -1,0 +1,48 @@
+
+/* ========== 兼容浅色背景内容区的可读性（about 等内页） ========== */
+:root {
+  --text-dark-compat: #2C2C2C;
+  --text-light-compat: #666666;
+}
+
+/* 这些区块通常使用白色或浅色背景，需要深色文字 */
+.timeline,
+.organizations-grid {
+  color: var(--text-dark-compat);
+}
+
+/* 浅色区块内的标题与副标题用深色而不是渐变透明文字 */
+
+
+.content-section .section-subtitle {
+  color: var(--text-light-compat) !important;
+}
+
+/* 通用内容文字、卡片、时间线等在浅色背景下的文本颜色修正 */
+.news-content p {
+  color: var(--text-light-compat);
+}
+
+/* 修正按钮在浅色区块的可见度（保留科技风但保证对比度） */
+.content-section .btn,
+.features-section .btn,
+.student-organizations .btn {
+  border-color: rgba(0, 212, 255, 0.5);
+  box-shadow: 0 6px 18px rgba(0,0,0,0.12);
+}
+
+/* 修正时间线在浅色背景下的分隔线与年份对比度 */
+
+
+/* 浅色区块中的链接状态 */
+.content-section a,
+.features-section a,
+.student-organizations a {
+  color: var(--text-dark-compat);
+}
+
+.content-section a:hover,
+.features-section a:hover,
+.student-organizations a:hover {
+  color: var(--neon-cyan);
+}
