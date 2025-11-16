@@ -1054,7 +1054,7 @@ body::after {
     }
 }
 
-@media (max-width: 768px) {
+@media (max-width: 1000px) {
     .nav {
         display: none;
         position: absolute;
@@ -2867,4 +2867,5 @@ html {
     .student-organizations {
         padding: 60px 0;
     }
+
 }
