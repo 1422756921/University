@@ -1,0 +1,661 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EduPay Pro - 校园工资单生成系统</title>
+  
+  <!-- 引入 Tailwind CSS (样式库) -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- 引入 React 和 ReactDOM -->
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  
+  <!-- 引入 Babel (用于解析 React 代码) -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  
+  <!-- 引入 html2canvas (用于导出图片) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
+  <style>
+    /* 打印样式优化 */
+    @media print {
+      body * { visibility: hidden; }
+      #salary-slip, #salary-slip * { visibility: visible; }
+      #salary-slip { position: absolute; left: 0; top: 0; width: 100%; margin: 0; padding: 0; box-shadow: none; background: white; }
+      * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+      /* 隐藏不需要打印的按钮和导航 */
+      nav, .no-print { display: none !important; }
+    }
+    
+    /* 自定义滚动条 */
+    ::-webkit-scrollbar { width: 8px; }
+    ::-webkit-scrollbar-track { background: #f1f1f1; }
+    ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+  </style>
+</head>
+<body class="bg-gray-100 font-sans text-gray-800">
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect, useRef } = React;
+
+    // --- 图标组件 (内置 SVG 以确保单文件运行) ---
+    const School = (props) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="m4 6 8-4 8 4"/><path d="m18 10 4 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-8l4-2"/><path d="M14 22v-4a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v4"/><path d="M18 5v17"/><path d="M6 5v17"/></svg>;
+    const RefreshCw = (props) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg>;
+    const Download = (props) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>;
+    const Loader2 = (props) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>;
+    const Upload = (props) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg>;
+    const ImageIcon = (props) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>;
+    const Calculator = (props) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><rect width="16" height="20" x="4" y="2" rx="2"/><line x1="8" x2="16" y1="6" y2="6"/><line x1="16" x2="16" y1="14" y2="18"/><path d="M16 10h.01"/><path d="M12 10h.01"/><path d="M8 10h.01"/><path d="M12 14h.01"/><path d="M8 14h.01"/><path d="M12 18h.01"/><path d="M8 18h.01"/></svg>;
+    const Lock = (props) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>;
+    const Unlock = (props) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg>;
+
+    // --- 配置数据 ---
+    const SCHOOL_TYPES = {
+      KINDERGARTEN: { label: '幼儿园 (Kindergarten)', value: 'kindergarten' },
+      MIDDLE: { label: '初中 (Middle School)', value: 'middle' },
+      HIGH: { label: '高中 (High School)', value: 'high' }
+    };
+
+    const MOCK_DATA = {
+      kindergarten: {
+        names: ["Sunshine Bilingual Kindergarten", "Little Angels Academy", "Creative Kids Preschool", "Montessori Early Learning Center"],
+        positions: ["Lead Teacher", "Assistant Teacher", "Early Childhood Educator", "Child Care Specialist", "Preschool Director"],
+        departments: ["Early Education", "Child Care", "Arts & Crafts", "Administration"],
+        salaryRange: [2800, 4500]
+      },
+      middle: {
+        names: ["Lincoln Middle School", "Central Junior High", "Westside Middle School", "Oak Valley Middle School"],
+        positions: ["Math Teacher", "Science Teacher", "English Teacher", "Guidance Counselor", "PE Instructor"],
+        departments: ["Mathematics", "Science Dept", "Humanities", "Student Services", "Athletics"],
+        salaryRange: [3500, 5200]
+      },
+      high: {
+        names: ["Roosevelt High School", "Tech Valley High", "Northside Senior High", "International Prep Academy"],
+        positions: ["Physics Teacher", "AP History Teacher", "Chemistry Teacher", "Varsity Coach", "Principal", "Literature Teacher"],
+        departments: ["Science Dept", "Social Studies", "Language Arts", "Administration", "Athletics"],
+        salaryRange: [4200, 6500]
+      }
+    };
+
+    const FIRST_NAMES = ["James", "Mary", "Robert", "Patricia", "John", "Jennifer", "Michael", "Linda", "David", "Elizabeth", "William", "Barbara", "Richard", "Susan", "Joseph", "Jessica", "Thomas", "Sarah", "Charles", "Karen"];
+    const LAST_NAMES = ["Smith", "Johnson", "Williams", "Brown", "Jones", "Garcia", "Miller", "Davis", "Rodriguez", "Martinez", "Hernandez", "Lopez", "Gonzalez", "Wilson", "Anderson", "Taylor", "Thomas", "Moore", "Jackson", "Martin"];
+
+    // 生成随机 E + 8位数字 ID
+    const generateEmployeeId = () => {
+      const randomNum = Math.floor(10000000 + Math.random() * 90000000); // 8位随机数
+      return `E${randomNum}`;
+    };
+
+    // 生成随机日期
+    const generateDates = () => {
+      const today = new Date();
+      const checkDate = new Date(today);
+      checkDate.setDate(today.getDate() - Math.floor(Math.random() * 30) - 1);
+      
+      if (checkDate.getDay() === 0) checkDate.setDate(checkDate.getDate() - 2); 
+      else if (checkDate.getDay() === 6) checkDate.setDate(checkDate.getDate() - 1); 
+
+      const payPeriodEnd = new Date(checkDate);
+      payPeriodEnd.setDate(checkDate.getDate() - Math.floor(Math.random() * 4) - 1);
+
+      const isMonthly = Math.random() > 0.5;
+      const payPeriodStart = new Date(payPeriodEnd);
+      payPeriodStart.setDate(payPeriodEnd.getDate() - (isMonthly ? 29 : 13));
+
+      const fmt = (d) => d.toISOString().split('T')[0];
+
+      return {
+        checkDate: fmt(checkDate),
+        payPeriodEnd: fmt(payPeriodEnd),
+        payPeriodStart: fmt(payPeriodStart)
+      };
+    };
+
+    const getRandomItem = (arr) => arr[Math.floor(Math.random() * arr.length)];
+
+    // 初始默认数据
+    const INITIAL_DATA = {
+      schoolType: 'high',
+      universityName: "Roosevelt High School",
+      deptAddress: "4500 Independence Dr, Liberty City, FL 33129",
+      phone: "(305) 555-0199",
+      directorName: "J. Richardson",
+      payPeriodStart: "", 
+      payPeriodEnd: "",
+      checkDate: "",
+      employeeName: "Dr. James Smith",
+      employeeId: "E12345678",
+      department: "Science Dept",
+      position: "Physics Teacher",
+      
+      salary: 5200.00,
+      overtime: 0,
+      bonus: 0,
+      subsidies: 150.00, 
+      otherEarnings: 0, 
+      ytdSalary: 62400.00,
+      
+      taxRateFed: 18, 
+      taxRateState: 4, 
+      
+      manualFedTax: null,
+      manualStateTax: null,
+      manualRetirement: 250.00,
+      manualHealth: 120.00,
+    };
+
+    // --- 主组件 ---
+    function PayrollGenerator() {
+      const [data, setData] = useState(INITIAL_DATA);
+      const [logoUrl, setLogoUrl] = useState("");
+      const [isExporting, setIsExporting] = useState(false);
+      
+      // 锁定状态
+      const [locks, setLocks] = useState({
+        school: false,
+        identity: false
+      });
+
+      const salarySlipRef = useRef(null);
+
+      // 首次加载生成日期
+      useEffect(() => {
+        generateRandomData('high', true); 
+      }, []);
+
+      const [calculations, setCalculations] = useState({
+        grossPay: 0,
+        ytdGrossPay: 0,
+        socialSecurity: 0,
+        medicare: 0,
+        fedTax: 0,
+        stateTax: 0,
+        totalDeductions: 0,
+        netPay: 0,
+        ytdFedTax: 0,
+        ytdStateTax: 0,
+        ytdSocialSecurity: 0,
+        ytdMedicare: 0,
+        ytdRetire: 0,
+        ytdHealth: 0,
+        ytdTotalDeductions: 0
+      });
+
+      // 核心生成逻辑
+      const generateRandomData = (type = data.schoolType, forceUpdate = false) => {
+        const config = MOCK_DATA[type];
+        const dates = generateDates();
+        const baseSalary = Math.floor(Math.random() * (config.salaryRange[1] - config.salaryRange[0]) + config.salaryRange[0]) + Math.random();
+        
+        const ytdMultiplier = Math.floor(Math.random() * 3) + 10; 
+        
+        const streetNum = Math.floor(Math.random() * 9000) + 1000;
+        const zipSuffix = Math.floor(Math.random() * 90) + 10;
+        const address = `${streetNum} Education Blvd, Miami, FL 331${zipSuffix}`;
+
+        let newData = { ...data };
+
+        if (!locks.school || forceUpdate) {
+          newData.universityName = getRandomItem(config.names);
+          newData.deptAddress = address;
+          newData.phone = `(305) ${Math.floor(Math.random() * 800 + 200)}-${Math.floor(Math.random() * 8999 + 1000)}`;
+          newData.directorName = `${getRandomItem(FIRST_NAMES)[0]}. ${getRandomItem(LAST_NAMES)}`;
+        }
+
+        if (!locks.identity || forceUpdate) {
+          newData.employeeName = `${getRandomItem(FIRST_NAMES)} ${getRandomItem(LAST_NAMES)}`;
+          newData.employeeId = generateEmployeeId();
+        }
+
+        newData.schoolType = type;
+        newData.department = getRandomItem(config.departments);
+        newData.position = getRandomItem(config.positions);
+        
+        newData = { ...newData, ...dates };
+        newData.salary = Number(baseSalary.toFixed(2));
+        newData.overtime = 0;
+        newData.bonus = 0;
+        newData.subsidies = Math.floor(Math.random() * 200) + 50; 
+        newData.otherEarnings = 0;
+        
+        newData.ytdSalary = Number((baseSalary * ytdMultiplier).toFixed(2));
+        
+        newData.manualFedTax = null;
+        newData.manualStateTax = null;
+        
+        setData(newData);
+      };
+
+      const handleSchoolTypeChange = (e) => {
+        const newType = e.target.value;
+        generateRandomData(newType);
+      };
+
+      const toggleLock = (key) => {
+        setLocks(prev => ({ ...prev, [key]: !prev[key] }));
+      };
+
+      const handleLogoFileChange = (e) => {
+        const file = e.target.files[0];
+        if (file) {
+          const reader = new FileReader();
+          reader.onloadend = () => {
+            setLogoUrl(reader.result);
+          };
+          reader.readAsDataURL(file);
+        }
+      };
+
+      const handleExportImage = async () => {
+        if (!salarySlipRef.current || !window.html2canvas) {
+          alert("组件或库尚未加载完毕，请稍后再试");
+          return;
+        }
+        setIsExporting(true);
+        try {
+          // A4 宽度 210mm，标准 96 DPI 下约为 794px
+          // 目标宽度设为 1080px (1080p 标准宽度)
+          const targetWidth = 1080;
+          const elementWidth = salarySlipRef.current.offsetWidth;
+          // 计算 scale，确保输出图片宽度为 1080px
+          const scale = targetWidth / elementWidth;
+
+          const canvas = await window.html2canvas(salarySlipRef.current, {
+            scale: scale,
+            useCORS: true, 
+            logging: false,
+            backgroundColor: '#ffffff'
+          });
+          const imgData = canvas.toDataURL('image/png');
+          const link = document.createElement('a');
+          const randomSuffix = Math.floor(Math.random() * 900) + 100;
+          const cleanName = data.employeeName.replace(/[^a-zA-Z0-9]/g, '_');
+          link.download = `${cleanName}_${randomSuffix}.png`;
+          link.href = imgData;
+          link.click();
+        } catch (error) {
+          console.error("Export failed:", error);
+          alert("导出失败");
+        } finally {
+          setIsExporting(false);
+        }
+      };
+
+      // 实时计算
+      useEffect(() => {
+        const grossPay = Number(data.salary) + Number(data.overtime) + Number(data.bonus) + Number(data.subsidies) + Number(data.otherEarnings);
+        const ytdRatio = (data.salary > 0 && data.ytdSalary > 0) ? (data.ytdSalary / data.salary) : 10;
+        
+        const socialSecurity = Number((grossPay * 0.062).toFixed(2));
+        const medicare = Number((grossPay * 0.0145).toFixed(2));
+        const fedTax = data.manualFedTax !== null ? Number(data.manualFedTax) : Number((grossPay * (data.taxRateFed / 100)).toFixed(2));
+        const stateTax = data.manualStateTax !== null ? Number(data.manualStateTax) : Number((grossPay * (data.taxRateState / 100)).toFixed(2));
+        const retirement = Number(data.manualRetirement);
+        const health = Number(data.manualHealth);
+
+        const totalDeductions = socialSecurity + medicare + fedTax + stateTax + retirement + health;
+        const netPay = grossPay - totalDeductions;
+
+        const ytdFedTax = fedTax * ytdRatio;
+        const ytdStateTax = stateTax * ytdRatio;
+        const ytdSocialSecurity = socialSecurity * ytdRatio;
+        const ytdMedicare = medicare * ytdRatio;
+        const ytdRetire = retirement * ytdRatio;
+        const ytdHealth = health * ytdRatio;
+        const ytdTotalDeductions = totalDeductions * ytdRatio;
+        const ytdGrossPay = grossPay * ytdRatio;
+
+        setCalculations({
+          grossPay, ytdGrossPay, socialSecurity, medicare, fedTax, stateTax, totalDeductions, netPay,
+          ytdFedTax, ytdStateTax, ytdSocialSecurity, ytdMedicare, ytdRetire, ytdHealth, ytdTotalDeductions
+        });
+      }, [data]);
+
+      const handleInputChange = (e) => {
+        const { name, value, type } = e.target;
+        setData(prev => ({
+          ...prev,
+          [name]: type === 'number' ? parseFloat(value) || 0 : value
+        }));
+      };
+
+      const formatMoney = (amount) => {
+        return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
+      };
+
+      return (
+        <div className="min-h-screen flex flex-col">
+          {/* 顶部导航 */}
+          <nav className="bg-slate-900 text-white p-4 shadow-md sticky top-0 z-50">
+            <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
+              <div className="flex items-center gap-2">
+                <School size={24} className="text-yellow-400" />
+                <h1 className="text-xl font-bold">EduPay Pro</h1>
+              </div>
+              
+              <div className="flex flex-wrap items-center gap-4 bg-slate-800 p-2 rounded-lg border border-slate-700">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium text-slate-300">类型:</span>
+                  <select 
+                    value={data.schoolType} 
+                    onChange={handleSchoolTypeChange}
+                    className="bg-slate-700 text-white border-none rounded px-3 py-1.5 text-sm focus:ring-2 focus:ring-yellow-400 outline-none cursor-pointer"
+                  >
+                    {Object.values(SCHOOL_TYPES).map(t => (
+                      <option key={t.value} value={t.value}>{t.label}</option>
+                    ))}
+                  </select>
+                </div>
+                
+                <button 
+                  onClick={() => generateRandomData(data.schoolType)}
+                  className="flex items-center gap-2 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 rounded text-sm transition font-medium text-white"
+                >
+                  <RefreshCw size={14} /> 随机匹配
+                </button>
+              </div>
+
+              <div className="flex gap-2">
+                <button 
+                  onClick={handleExportImage} 
+                  disabled={isExporting}
+                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:bg-blue-800 rounded transition shadow text-sm font-bold min-w-[140px] justify-center text-white"
+                >
+                  {isExporting ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
+                  {isExporting ? '处理中...' : '导出高清图片'}
+                </button>
+              </div>
+            </div>
+          </nav>
+
+          {/* 主布局 */}
+          <div className="max-w-7xl mx-auto p-4 md:p-8 flex flex-col lg:flex-row gap-8 w-full">
+            
+            {/* 左侧：预览面板 */}
+            <div className="w-full lg:w-2/3 flex justify-center">
+              <div 
+                ref={salarySlipRef}
+                id="salary-slip"
+                className="bg-white shadow-2xl w-[210mm] min-h-[297mm] p-[15mm] relative flex flex-col"
+                style={{ fontFamily: '"Times New Roman", Times, serif' }}
+              >
+                {/* 文档头部 */}
+                <div className="text-center mb-6 border-b-4 border-slate-900 pb-4 relative min-h-[100px] flex flex-col justify-center">
+                  
+                  {/* Logo 显示区域 - 绝对定位 */}
+                  {logoUrl && (
+                    <div className="absolute top-0 left-0 h-full w-28 flex items-center justify-center">
+                      <img src="{logoUrl}.html" alt="School Logo" className="max-w-full max-h-24 object-contain" />
+                    </div>
+                  )}
+
+                  {/* 标题区域 - 始终居中 */}
+                  <div className="px-4">
+                    <h1 className="text-3xl font-bold text-slate-900 mb-2 uppercase tracking-wide">{data.universityName}</h1>
+                    <div className="text-sm text-slate-600 flex flex-col items-center gap-1 font-sans">
+                      <p>Payroll Department | {data.deptAddress}</p>
+                      <p>Contact: {data.phone}</p>
+                    </div>
+                  </div>
+
+                  <div className="mt-6">
+                    <h2 className="text-xl font-bold uppercase tracking-widest text-slate-900">Salary Statement</h2>
+                    <p className="text-slate-600 font-sans text-sm mt-1">
+                      Pay Period: {formatDate(data.payPeriodStart)} — {formatDate(data.payPeriodEnd)}
+                    </p>
+                  </div>
+                </div>
+
+                {/* 员工信息框 */}
+                <div className="border-2 border-slate-900 p-3 mb-6 bg-slate-50">
+                  <h3 className="text-center font-bold font-sans text-slate-800 mb-2 border-b border-slate-300 pb-1 mx-10 text-sm">EMPLOYEE INFORMATION</h3>
+                  <div className="grid grid-cols-2 gap-y-2 text-sm px-4">
+                    <div className="flex"><span className="font-bold w-24">Name:</span> <span>{data.employeeName}</span></div>
+                    <div className="flex"><span className="font-bold w-24">Employee ID:</span> <span>{data.employeeId}</span></div>
+                    <div className="flex"><span className="font-bold w-24">Department:</span> <span>{data.department}</span></div>
+                    <div className="flex"><span className="font-bold w-24">Position:</span> <span>{data.position}</span></div>
+                    <div className="flex"><span className="font-bold w-24">Check Date:</span> <span>{formatDate(data.checkDate)}</span></div>
+                  </div>
+                </div>
+
+                {/* 收入部分 */}
+                <div className="mb-4">
+                  <div className="bg-emerald-800 text-white font-bold py-1 px-4 uppercase text-sm tracking-wider flex justify-between items-center">
+                    <span>Earnings</span>
+                    <span className="text-xs font-normal opacity-80">Rate: Monthly/Bi-weekly</span>
+                  </div>
+                  <table className="w-full text-sm border-collapse">
+                    <thead>
+                      <tr className="border-b-2 border-emerald-800 text-left font-sans text-xs bg-emerald-50">
+                        <th className="py-2 px-2 w-1/2">Description</th>
+                        <th className="py-2 px-2 text-right">Current</th>
+                        <th className="py-2 px-2 text-right">YTD (Cumulative)</th>
+                      </tr>
+                    </thead>
+                    <tbody className="font-sans">
+                      <EarningsRow label="Regular Salary" amount={data.salary} ytd={data.ytdSalary} />
+                      <EarningsRow label="Overtime Pay" amount={data.overtime} ytd={data.overtime * (data.ytdSalary/data.salary)} />
+                      <EarningsRow label="Bonus / Performance" amount={data.bonus} ytd={data.bonus * (data.ytdSalary/data.salary)} />
+                      <EarningsRow label="Subsidies" amount={data.subsidies} ytd={data.subsidies * (data.ytdSalary/data.salary)} />
+                      {data.otherEarnings > 0 && <EarningsRow label="Other Earnings" amount={data.otherEarnings} ytd={data.otherEarnings * (data.ytdSalary/data.salary)} />}
+                      
+                      <tr className="font-bold bg-emerald-50 border-t border-emerald-200">
+                        <td className="py-2 px-2 uppercase text-xs">Total Gross Pay</td>
+                        <td className="py-2 px-2 text-right">{formatMoney(calculations.grossPay)}</td>
+                        <td className="py-2 px-2 text-right text-gray-700">{formatMoney(calculations.ytdGrossPay)}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* 扣除部分 */}
+                <div className="mb-6">
+                  <div className="bg-red-800 text-white font-bold py-1 px-4 uppercase text-sm tracking-wider">
+                    Deductions / Taxes
+                  </div>
+                  <table className="w-full text-sm border-collapse">
+                    <thead>
+                      <tr className="border-b-2 border-red-800 text-left font-sans text-xs bg-red-50">
+                        <th className="py-2 px-2 w-1/2">Description</th>
+                        <th className="py-2 px-2 text-right">Current Amount</th>
+                        <th className="py-2 px-2 text-right">YTD Amount</th>
+                      </tr>
+                    </thead>
+                    <tbody className="font-sans text-slate-700">
+                      <DeductionRow label="Federal Tax" amount={calculations.fedTax} ytd={calculations.ytdFedTax} />
+                      <DeductionRow label="State Tax" amount={calculations.stateTax} ytd={calculations.ytdStateTax} />
+                      <DeductionRow label="Social Security" amount={calculations.socialSecurity} ytd={calculations.ytdSocialSecurity} note="6.2%" />
+                      <DeductionRow label="Medicare" amount={calculations.medicare} ytd={calculations.ytdMedicare} note="1.45%" />
+                      <DeductionRow label="Retirement (401k)" amount={data.manualRetirement} ytd={calculations.ytdRetire} />
+                      <DeductionRow label="Health Insurance" amount={data.manualHealth} ytd={calculations.ytdHealth} />
+                      
+                      <tr className="font-bold bg-red-50 border-t border-red-200 text-red-900">
+                        <td className="py-2 px-2 uppercase text-xs">Total Deductions</td>
+                        <td className="py-2 px-2 text-right">{formatMoney(calculations.totalDeductions)}</td>
+                        <td className="py-2 px-2 text-right opacity-80">{formatMoney(calculations.ytdTotalDeductions)}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* 净收入 (Net Pay) */}
+                <div className="bg-slate-900 text-white p-5 flex flex-col items-center justify-center rounded-sm border-t-4 border-slate-500 mb-4">
+                  <h3 className="text-lg font-sans uppercase tracking-widest text-slate-400 mb-1">Net Pay Distribution</h3>
+                  <div className="text-xs text-slate-400 mb-3 font-mono bg-slate-800 px-3 py-1 rounded">
+                    Gross Pay ({formatMoney(calculations.grossPay)}) – Total Deductions ({formatMoney(calculations.totalDeductions)}) = Net Pay
+                  </div>
+                  <div className="text-4xl font-bold tracking-tight mb-2">
+                    {formatMoney(calculations.netPay)}
+                  </div>
+                  <p className="text-xs text-slate-400 font-sans">
+                    Deposited to Account ending in ****{Math.floor(Math.random() * 8999 + 1000)}
+                  </p>
+                </div>
+
+                {/* 签名区域 */}
+                <div className="mt-auto mb-8 pt-8 px-12 flex justify-end">
+                  <div className="text-center w-64">
+                    <div className="h-12 flex items-end justify-center pb-1" style={{fontFamily: 'cursive', fontSize: '1.5rem', color: '#1e293b'}}>
+                      <span className="opacity-80">{data.directorName}</span>
+                    </div>
+                    <div className="border-b-2 border-slate-900 w-full mb-2"></div>
+                    <p className="font-bold text-slate-900 uppercase text-xs tracking-wider">Principal / Finance Director</p>
+                    <p className="text-[10px] text-slate-500">Authorized Signature</p>
+                  </div>
+                </div>
+
+                {/* 底部声明 */}
+                <div className="text-center absolute bottom-[10mm] left-0 w-full">
+                  <p className="text-[10px] text-slate-400 font-sans mx-auto w-3/4 border-t border-slate-200 pt-2">
+                    This statement is for informational purposes only. If you have questions regarding this statement, please contact the Payroll Department at {data.phone}.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* 右侧：编辑面板 */}
+            <div className="w-full lg:w-1/3 space-y-6">
+              
+              {/* Logo 设置 */}
+              <div className="bg-white p-6 rounded-lg shadow-lg">
+                <div className="flex items-center gap-2 mb-4 border-b pb-2">
+                  <ImageIcon className="text-purple-600" />
+                  <h2 className="text-lg font-bold text-gray-700">Logo 设置</h2>
+                </div>
+                <p className="text-xs text-gray-400 mb-3">支持本地文件上传</p>
+                <div className="border-2 border-dashed border-gray-300 rounded p-4 text-center hover:bg-gray-50 transition cursor-pointer relative">
+                  <input type="file" accept="image/*" onChange={handleLogoFileChange} className="absolute inset-0 opacity-0 cursor-pointer" />
+                  <div className="flex flex-col items-center gap-1 text-gray-500"><Upload size={20} /><span className="text-xs">点击上传本地 Logo</span></div>
+                </div>
+                {logoUrl && <div className="mt-3 flex items-center gap-2 p-2 bg-gray-50 rounded border"><span className="text-xs text-green-600">已加载 Logo</span><button onClick={() => setLogoUrl("")} className="ml-auto text-xs text-red-500 hover:underline">移除</button></div>}
+              </div>
+
+              {/* 数据编辑 */}
+              <div className="bg-white p-6 rounded-lg shadow-lg h-fit overflow-y-auto max-h-[calc(100vh-300px)]">
+                <div className="flex items-center gap-2 mb-6 border-b pb-4">
+                  <Calculator className="text-blue-600" />
+                  <h2 className="text-lg font-bold text-gray-700">详细数据</h2>
+                </div>
+
+                <form className="space-y-6">
+                  {/* 机构信息 */}
+                  <div className="space-y-3">
+                    <div className="flex justify-between items-center"><h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">机构信息</h3><button type="button" onClick={() => toggleLock('school')} className={`flex items-center gap-1 text-xs px-2 py-1 rounded transition ${locks.school ? 'bg-amber-100 text-amber-700 font-bold' : 'text-gray-400 hover:bg-gray-100'}`}>{locks.school ? <Lock size={12} /> : <Unlock size={12} />}{locks.school ? '已锁定' : '未锁定'}</button></div>
+                    <div className={`grid grid-cols-1 gap-3 transition-opacity ${locks.school ? 'opacity-60 pointer-events-none' : ''}`}>
+                      <InputGroup label="学校名称" name="universityName" value={data.universityName} onChange={handleInputChange} />
+                      <InputGroup label="地址" name="deptAddress" value={data.deptAddress} onChange={handleInputChange} />
+                      <div className="grid grid-cols-2 gap-3">
+                        <InputGroup label="电话" name="phone" value={data.phone} onChange={handleInputChange} />
+                        <InputGroup label="签字人" name="directorName" value={data.directorName} onChange={handleInputChange} />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 员工信息 */}
+                  <div className="space-y-3">
+                    <div className="flex justify-between items-center"><h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">员工信息</h3><button type="button" onClick={() => toggleLock('identity')} className={`flex items-center gap-1 text-xs px-2 py-1 rounded transition ${locks.identity ? 'bg-amber-100 text-amber-700 font-bold' : 'text-gray-400 hover:bg-gray-100'}`}>{locks.identity ? <Lock size={12} /> : <Unlock size={12} />}{locks.identity ? '身份锁定' : '未锁定'}</button></div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className={`col-span-2 grid grid-cols-2 gap-3 transition-opacity ${locks.identity ? 'opacity-60 pointer-events-none' : ''}`}>
+                        <InputGroup label="姓名" name="employeeName" value={data.employeeName} onChange={handleInputChange} />
+                        <InputGroup label="ID" name="employeeId" value={data.employeeId} onChange={handleInputChange} />
+                      </div>
+                      <InputGroup label="部门" name="department" value={data.department} onChange={handleInputChange} />
+                      <InputGroup label="职位" name="position" value={data.position} onChange={handleInputChange} />
+                      <InputGroup label="周期开始" type="date" name="payPeriodStart" value={data.payPeriodStart} onChange={handleInputChange} />
+                      <InputGroup label="周期结束" type="date" name="payPeriodEnd" value={data.payPeriodEnd} onChange={handleInputChange} />
+                      <div className="col-span-2"><InputGroup label="发薪日" type="date" name="checkDate" value={data.checkDate} onChange={handleInputChange} /></div>
+                    </div>
+                  </div>
+
+                  {/* 财务数据 */}
+                  <div className="space-y-3">
+                    <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">收入 (Earnings)</h3>
+                    <div className="grid grid-cols-2 gap-3">
+                      <InputGroup label="基本工资" type="number" name="salary" value={data.salary} onChange={handleInputChange} />
+                      <InputGroup label="YTD 累计" type="number" name="ytdSalary" value={data.ytdSalary} onChange={handleInputChange} />
+                      <InputGroup label="加班/课时" type="number" name="overtime" value={data.overtime} onChange={handleInputChange} />
+                      <InputGroup label="奖金/绩效" type="number" name="bonus" value={data.bonus} onChange={handleInputChange} />
+                      <InputGroup label="津贴" type="number" name="subsidies" value={data.subsidies} onChange={handleInputChange} />
+                      <InputGroup label="其他" type="number" name="otherEarnings" value={data.otherEarnings} onChange={handleInputChange} />
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
+                    <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">扣除 (Deductions)</h3>
+                    <div className="grid grid-cols-2 gap-3">
+                      <InputGroup label="联邦税 (自动)" type="number" name="manualFedTax" value={data.manualFedTax || ''} onChange={handleInputChange} placeholder="Auto" />
+                      <InputGroup label="州税 (自动)" type="number" name="manualStateTax" value={data.manualStateTax || ''} onChange={handleInputChange} placeholder="Auto" />
+                      <InputGroup label="退休金" type="number" name="manualRetirement" value={data.manualRetirement} onChange={handleInputChange} />
+                      <InputGroup label="健康保险" type="number" name="manualHealth" value={data.manualHealth} onChange={handleInputChange} />
+                    </div>
+                  </div>
+                </form>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // --- 子组件 ---
+    function InputGroup({ label, name, value, onChange, type = "text", placeholder }) {
+      return (
+        <div className="flex flex-col">
+          <label className="text-xs font-semibold text-gray-500 mb-1">{label}</label>
+          <input
+            type={type}
+            name={name}
+            value={value}
+            onChange={onChange}
+            placeholder={placeholder}
+            className="border border-gray-300 rounded px-2 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition w-full"
+          />
+        </div>
+      );
+    }
+
+    function EarningsRow({ label, amount, ytd }) {
+      const format = (amt) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amt || 0);
+      return (
+        <tr className="border-b border-gray-100 hover:bg-gray-50">
+          <td className="py-2 px-2">{label}</td>
+          <td className="py-2 px-2 text-right font-medium">{format(amount)}</td>
+          <td className="py-2 px-2 text-right text-gray-500">{format(ytd)}</td>
+        </tr>
+      );
+    }
+
+    function DeductionRow({ label, amount, ytd, note }) {
+      const format = (amt) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amt || 0);
+      return (
+        <tr className="border-b border-gray-100 hover:bg-gray-50">
+          <td className="py-2 px-2">
+            {label} 
+            {note && <span className="text-xs text-gray-400 ml-2">({note})</span>}
+          </td>
+          <td className="py-2 px-2 text-right font-medium text-red-600">
+            {amount > 0 ? `-${format(amount)}` : '$0.00'}
+          </td>
+          <td className="py-2 px-2 text-right text-gray-400">
+            {ytd > 0 ? format(ytd) : '$0.00'}
+          </td>
+        </tr>
+      );
+    }
+    
+    function formatDate(dateStr) {
+      if (!dateStr) return '';
+      const [year, month, day] = dateStr.split('-');
+      return `${month}/${day}/${year}`;
+    }
+
+    // --- 渲染 ---
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<PayrollGenerator />);
+  </script>
+</body>
+</html>
